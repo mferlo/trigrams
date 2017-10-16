@@ -18,36 +18,64 @@ class T {
   // it is a placeholder, otherwise a literal.
   // "trigrams" is array of strings.
   static create(pattern, trigrams) {
+    let p = [];
+    let trigramIndex = 0; // [0, 0, 0, 1, 1, 1, 2, ...]
+    let trigramCount = 0;
+    for (let i = 0; i <= pattern.length; i++) {
+      if (pattern[i]) {
+        p[i] = { isLiteral: true, value: pattern[i] };
+      } else {
+        p[i] = { isLiteral: false,
+                 trigramIndex,
+                 internalTrigramIndex: trigramCount };
+        trigramCount += 1;
+        if (trigramCount === 3) {
+          trigramIndex += 1;
+          trigramCount = 0;
+        }
+      }
+    }
+
     return {
-      pattern,
-      trigrams,
-      mappedTrigrams: trigrams.map(_ => null),
-      mappedLetters: {}
+      pattern: p,
+      trigrams: trigrams.map(
+        (t, i) => { return { value: t, index: i, mappedTo: null }; }),
     };
   }
 
-  static getTrigram(state, t, i) {
-    return {
-      value: t,
-      index: i,
-      assigned: state.mappedTrigrams[i] !== null
-    };
+  static getMappings(state) {
+    const result = [];
+    state.trigrams.forEach(
+      t => { if (t.mappedTo !== null) { result[t.mappedTo] = t.value; } });
+    return result;
   }
 
-  static getTrigrams(state) {
-    console.log(state.trigrams);
-    return state.trigrams.map((t, i) => T.getTrigram(state, t, i));
+  static maybeGetMappedChar(state, trigramIndex, internalTrigramIndex) {
+    
+  }
+
+  static assign(state, trigram, patternIndex) {
+    if (trigram.assigned) {
+      return state;
+    }
+
+    
   }
 
   static getText(state) {
     let text = "";
     let i = 0;
+    let ii = 0;
     for (let p of state.pattern) {
-      if (p) {
-        text += p;
+      if (p.isLiteral) {
+        text += p.value;
       } else {
-        text += state.mappedLetters[i] || "_";
-        i++;
+        text += T.maybeGetMappedChar(state, i, ii);
+        ii += 1;
+        if (ii === 3) {
+          ii = 0;
+          i += 1;
+        }
       }
     }
     return text;
@@ -56,20 +84,22 @@ class T {
 
 class Trigram extends Component {
   render() {
-    console.log(this.props);
-    const className = this.props.assigned ? "assigned" : "";
-    const key = `${this.props.index}-${this.props.value}-${this.props.assigned}`;
+    const className = this.props.assigned ? " assigned" : "";
     return (
-      <span key={key} className={"trigram " + className}>
+      <span className={"trigram " + className}>
         {this.props.value}
       </span>);
   }
 }
 
 class Trigrams extends Component {
+
   render() {
-    const trigrams = this.props.trigrams.map(t => <Trigram {...t} />);
-    return (<div className="trigrams">{trigrams}</div>);
+    const makeKey = t => `${t.index}-${t.value}-${t.assigned}`;
+    return (
+      <div className="trigrams">
+        {this.props.trigrams.map(t => <Trigram key={makeKey(t)} {...t} />)}
+      </div>);
   }
 }
 
@@ -85,13 +115,10 @@ class App extends Component {
 
   render() {
     const text = T.getText(this.state);
-    const trigrams = T.getTrigrams(this.state);
-
-    console.log(trigrams);
 
     return (
       <div>
-        <Trigrams trigrams={trigrams} />
+        <Trigrams trigrams={this.state.trigrams} />
         <br />
         {text}
       </div>
