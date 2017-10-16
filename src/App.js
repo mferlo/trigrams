@@ -95,15 +95,15 @@ class Solver extends Component {
     super(props);
 
     this.state = {
-      pattern: new Pattern("3'2 2 3 10!"),
-      trigrams: [ "LLG", "OFA", "YOU", "R" ].map(t => new Trigram(t)),
+      pattern: new Pattern(this.props.pattern),
+      trigrams: this.props.trigrams.map(t => new Trigram(t)),
       activeTrigram: null
     };
   }
 
   toggleActiveTrigram(i) {
     const newActiveTrigram = this.state.activeTrigram === i ? null : i;
-    this.setState(oldState => { return { ...oldState, activeTrigram: newActiveTrigram }; });
+    this.setState(oldState => ({ ...oldState, activeTrigram: newActiveTrigram }));
   }
 
   placeActiveTrigram(i) {
@@ -178,4 +178,56 @@ class Solver extends Component {
   }
 }
 
-export default Solver;
+class App extends Component {
+  constructor(props) {
+    super(props);
+
+    const initialPattern = "5 7!";
+    const initialTrigrams = "HAP ING OLV PYS";
+
+    this.state = {
+      pattern: initialPattern,
+      currentPattern: initialPattern,
+      trigrams: initialTrigrams.split(" "),
+      currentTrigrams: initialTrigrams
+    };
+  }
+
+  update(e, key) {
+    e.persist();
+    this.setState(s => ({ ...s, [key]: e.target.value }));
+  }
+
+  updateValues() {
+    this.setState(s => ({ ...s, pattern: s.currentPattern, trigrams: s.currentTrigrams.split(" ") }));
+  }
+
+  loadExample() {
+    // From PB4
+    const p = "6 3 9, 4 2 4 7 8. 1 4 3 4 3 2 5. 7 2";
+    const t = "AND AVE BOA ELC GEN GIH IES INS KIN LAD MEN NON OME ONL PEA PTA RCA RDW SIS THE THI TLE YGU YOU TO";
+    this.setState(_ => ({
+      pattern: p,
+      currentPattern: p,
+      trigrams: t.split(" "),
+      currentTrigrams: t
+    }));
+  }
+
+  render() {
+    return (<div>
+      <Solver pattern={this.state.pattern} trigrams={this.state.trigrams} key={this.state.pattern+this.state.currentTrigrams}/>
+      <br />
+      <br />
+      <input size="200" type="text" value={this.state.currentPattern} onChange={e => this.update(e, 'currentPattern')} />
+      <br />
+      <input size="200" type="text" value={this.state.currentTrigrams} onChange={e => this.update(e, 'currentTrigrams')} />
+      <br />
+      <button onClick={_ => this.updateValues()}>Update</button>
+      <br />
+      <button onClick={_ => this.loadExample()}>Load Fancier Example</button>
+    </div>);
+  }
+}
+
+export default App;
