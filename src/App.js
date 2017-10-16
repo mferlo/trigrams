@@ -1,15 +1,11 @@
 import React, { Component } from 'react';
 
 // TODO:
-//  Give it a UI
-//  * make click handler for the trigrams, which makes them "activated"
-//  * make click handler for the pattern, which will consume the "activated"
-//  * make click handler for trigrams that are in the pattern
-//  * do something with graphics to indicate state & valid drop zones
-//  Then, iterate on it
 //  * way to input the puzzle data on the page itself
 //  * word suggest (literally all combos, then dictionary)
 //    * need to make pattern aware of the concept of a word
+//    * easy way out: have 2nd display of the pattern that's word-aware,
+//      use that for UI stuff
 //  * drag and drop
 
 class Trigram {
@@ -27,7 +23,7 @@ class PatternTrigram {
 
   getText() {
     let result = "";
-    let replacementLetters = this.assignedTrigram || "???";
+    let replacementLetters = this.assignedTrigram || "___";
     let replacementIndex = 0;
 
     for (let i = 0; i < this.pattern.length; i++) {
@@ -69,96 +65,90 @@ class Pattern {
   }
 }
 
-
-class T {
-  static create(pattern, trigrams) {
-    return {
-      pattern: new Pattern(pattern),
-      trigrams: trigrams.map(t => new Trigram(t))
-    };
-  }
-
-  static assign(state, trigramText, i) {
-    const trigramToAssign = state.trigrams.findIndex(t => t.letters === trigramText && t.assignedTo === null);
-    if (trigramToAssign === -1) {
-      return state;
-    }
-
-    state.trigrams[trigramToAssign].assignedTo = i;
-    state.pattern.patternTrigrams[i].assignedTrigram = trigramText;
-
-    return state;
-  }
-
-  static unassign(state, i) {
-    const trigramToUnassign = state.trigrams.findIndex(t => t.assignedTo === i);
-    if (trigramToUnassign === -1) {
-      return state;
-    }
-
-    state.trigrams[trigramToUnassign].assignedTo = null;
-    state.pattern.patternTrigrams[i].assignedTrigram = null;
-
-    return state;
-  }
-}
-
-class TrigramDisplay extends Component {
-  render() {
-    const className = this.props.assigned ? " assigned" : "";
-    return (
-      <span className={"trigram" + className}>
-        {this.props.letters}
-      </span>);
-  }
-}
-
 class App extends Component {
 
   constructor(props) {
     super(props);
-    this.state = T.create(
-      ["", "", "", "'", "", " ", "", ""],
-      [ "DGO", "YOU" ]
-    );
 
-    console.log(this.state);
+    this.state = {
+      pattern: new Pattern(["", "", "", "'", "", "", " ", "", "", " ", "", "", "", "!"]),
+      trigrams: [ "LLG", "OFA", "YOU", "R" ].map(t => new Trigram(t)),
+      activeTrigram: null
+    };
   }
 
-  renderTrigram(t) {
-    const key = `${t.letters}-${t.assignedTo}`;
-    return <TrigramDisplay key={key} letters={t.letters} assigned={t.assignedTo !== null} />;
+  toggleActiveTrigram(i) {
+    const newActiveTrigram = this.state.activeTrigram === i ? null : i;
+    this.setState(oldState => { return { ...oldState, activeTrigram: newActiveTrigram }; });
+  }
+
+  placeActiveTrigram(i) {
+    if (this.state.activeTrigram === null) {
+      return;
+    }
+
+    this.setState(s => {
+      const t = s.trigrams[s.activeTrigram];
+      t.assignedTo = i;
+      s.pattern.patternTrigrams[i].assignedTrigram = t.letters;
+      s.activeTrigram = null;
+      return s;
+    });
+  }
+
+  removePlacedTrigram(i) {
+    this.setState(s => {
+      const trigramToUnassign = s.trigrams.findIndex(t => t.assignedTo === i);
+      if (trigramToUnassign === -1) {
+        return s;
+      }
+      s.trigrams[trigramToUnassign].assignedTo = null;
+      s.pattern.patternTrigrams[i].assignedTrigram = null;
+
+      return s;
+    });
+  }
+
+  renderTrigram(t, i) {
+    const key = `trigram-${i}-${t.letters}`;
+
+    const className = "trigram"
+      + (t.assignedTo !== null ? " assigned" : " unassigned")
+      + (this.state.activeTrigram === i ? " active" : "");
+
+    return (<span className={className} key={key} onClick={_ => t.assignedTo === null && this.toggleActiveTrigram(i)}>
+      {t.letters}
+    </span>);
   }
 
   renderTrigrams() {
     return (<div>
-      {this.state.trigrams.map(t => this.renderTrigram(t))}
+      {this.state.trigrams.map((t, i) => this.renderTrigram(t, i))}
     </div>);
   }
 
-  renderPattern() {
-    return this.state.pattern.patternTrigrams.map(
-      (t, i) => <span key={t+i} className={"pattern " + i}>{t.getText()}</span>);
-  }
+  renderPattern(t, i) {
+    const key = `pattern-${i}-${t.pattern}-${t.assignedTrigram}`;
+    let className, onClick;
+    if (t.assignedTrigram) {
+      className = "pattern assigned";
+      onClick = _ => this.removePlacedTrigram(i);
+    } else {
+      className = "pattern";
+      onClick = _ => this.placeActiveTrigram(i);
+    }
 
-  assign() {
-    this.setState(oldState => T.assign(oldState, "YOU", 0));
-  }
-
-  unassign() {
-    this.setState(oldState => T.unassign(oldState, 0));
+    return (<span key={key} className={className} onClick={onClick}>
+      {t.getText()}
+    </span>);
   }
 
   render() {
-
     return (
       <div>
         {this.renderTrigrams()}
         <br />
-        {this.renderPattern()}
-        <br />
-        <button style={{width:"100px", height:"50px"}} onClick={e => this.assign()} />
-        <button style={{width:"100px", height:"50px"}} onClick={e => this.unassign()} />
+        {this.state.pattern.patternTrigrams.map((t, i) => this.renderPattern(t, i))}
       </div>
     );
   }
