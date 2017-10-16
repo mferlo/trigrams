@@ -7,3 +7,7 @@ body {
 .trigram {
   margin: 5px;
 }
+
+.trigram.assigned {
+  background-color: gray;
+}
