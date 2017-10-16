@@ -39,7 +39,31 @@ class PatternTrigram {
 }
 
 class Pattern {
-  constructor(pattern) { // Is expected to be an array of strings
+
+  static asArray(inputString) {
+    const pieces = inputString.split(" ");
+    const result = [];
+
+    for (const piece of pieces) {
+      let p = piece;
+      while (p) {
+        const maybeNumber = Number.parseInt(p, 10);
+        if (Number.isNaN(maybeNumber)) {
+          result.push(p.charAt(0));
+          p = p.substr(1);
+        } else {
+          result.push(...Array(maybeNumber).fill(""));
+          p = p.replace(/^\d+/, "");
+        }
+      }
+      result.push(" ");
+    }
+    result.pop();
+    return result;
+  }
+
+  constructor(stringPattern) {
+    let pattern = Pattern.asArray(stringPattern);
     let patternTrigrams = [];
 
     // TODO: Make each letter of PatternTrigram aware of which word it belongs to
@@ -65,13 +89,13 @@ class Pattern {
   }
 }
 
-class App extends Component {
+class Solver extends Component {
 
   constructor(props) {
     super(props);
 
     this.state = {
-      pattern: new Pattern(["", "", "", "'", "", "", " ", "", "", " ", "", "", "", "!"]),
+      pattern: new Pattern("3'2 2 3 10!"),
       trigrams: [ "LLG", "OFA", "YOU", "R" ].map(t => new Trigram(t)),
       activeTrigram: null
     };
@@ -154,4 +178,4 @@ class App extends Component {
   }
 }
 
-export default App;
+export default Solver;
