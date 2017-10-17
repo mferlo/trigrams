@@ -1,11 +1,9 @@
 import React, { Component } from 'react';
 
 // TODO:
-//  * way to input the puzzle data on the page itself
-//  * word suggest (literally all combos, then dictionary)
-//    * need to make pattern aware of the concept of a word
-//    * easy way out: have 2nd display of the pattern that's word-aware,
-//      use that for UI stuff
+//  * word suggest
+//    * all combos
+//    * dictionary
 //  * drag and drop
 
 class Trigram {
@@ -40,52 +38,57 @@ class PatternTrigram {
 
 class Pattern {
 
-  static asArray(inputString) {
-    const pieces = inputString.split(" ");
-    const result = [];
+  static* parse(inputString) {
+    let trigramNumber = 0;
+    let trigramIndex = 0;
+    let currentNumber = "";
 
-    for (const piece of pieces) {
-      let p = piece;
-      while (p) {
-        const maybeNumber = Number.parseInt(p, 10);
-        if (Number.isNaN(maybeNumber)) {
-          result.push(p.charAt(0));
-          p = p.substr(1);
-        } else {
-          result.push(...Array(maybeNumber).fill(""));
-          p = p.replace(/^\d+/, "");
+    const yieldBlanks = function*() {
+      for (let j = 0; j < Number.parseInt(currentNumber, 10); j++) {
+        yield { trigramNumber, trigramIndex, value: "" };
+        trigramIndex += 1;
+        if (trigramIndex === 3) {
+          trigramIndex = 0;
+          trigramNumber += 1;
         }
       }
-      result.push(" ");
+      currentNumber = "";
     }
-    result.pop();
-    return result;
+
+    for (let i = 0; i < inputString.length; i++) {
+      const ch = inputString.charAt(i);
+      if (ch.match(/\d/)) {
+        currentNumber += ch;
+      } else {
+        yield* yieldBlanks();
+        yield { trigramNumber, trigramIndex, value: ch };
+      }
+    }
+
+    yield* yieldBlanks(currentNumber);
   }
 
-  constructor(stringPattern) {
-    let pattern = Pattern.asArray(stringPattern);
-    let patternTrigrams = [];
-
-    // TODO: Make each letter of PatternTrigram aware of which word it belongs to
+  static* extractTrigrams(pattern) {
     let startIndex = 0;
 
     do {
-      let endIndex = startIndex;
-      let placeholderCount = 0;
+      const currentTrigram = pattern[startIndex].trigramNumber;
 
-      while (placeholderCount < 3 && endIndex < pattern.length) {
-        if (!pattern[endIndex]) { // It's a placeholder
-          placeholderCount += 1;
-        }
+      let endIndex = startIndex;
+      while (endIndex < pattern.length && pattern[endIndex].trigramNumber === currentTrigram) {
         endIndex += 1;
       }
-
-      patternTrigrams.push(new PatternTrigram(pattern.slice(startIndex, endIndex)));
+      yield new PatternTrigram(pattern.slice(startIndex, endIndex).map(p => p.value));
 
       startIndex = endIndex;
     } while (startIndex < pattern.length)
+  }
 
-    this.patternTrigrams = patternTrigrams;
+  constructor(stringPattern) {
+    const pattern = [...Pattern.parse(stringPattern)];
+    console.log(pattern);
+    this.trigrams = [...Pattern.extractTrigrams(pattern)];
+//    this.words = pattern.map(p => p || "#").join('').split(' ');
   }
 }
 
@@ -114,7 +117,7 @@ class Solver extends Component {
     this.setState(s => {
       const t = s.trigrams[s.activeTrigram];
       t.assignedTo = i;
-      s.pattern.patternTrigrams[i].assignedTrigram = t.letters;
+      s.pattern.trigrams[i].assignedTrigram = t.letters;
       s.activeTrigram = null;
       return s;
     });
@@ -127,7 +130,7 @@ class Solver extends Component {
         return s;
       }
       s.trigrams[trigramToUnassign].assignedTo = null;
-      s.pattern.patternTrigrams[i].assignedTrigram = null;
+      s.pattern.trigrams[i].assignedTrigram = null;
 
       return s;
     });
@@ -167,12 +170,19 @@ class Solver extends Component {
     </span>);
   }
 
+  renderWord(w, i) {
+    const key = `word-${i}-${w}`;
+    return <span key={key} className="word">{w}</span>;
+  }
+
   render() {
     return (
       <div>
         {this.renderTrigrams()}
         <br />
-        {this.state.pattern.patternTrigrams.map((t, i) => this.renderPattern(t, i))}
+        {this.state.pattern.trigrams.map((t, i) => this.renderPattern(t, i))}
+        <br />
+        {/*this.state.pattern.words.map((w, i) => this.renderWord(w, i))*/}
       </div>
     );
   }
