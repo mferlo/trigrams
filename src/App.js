@@ -2,7 +2,6 @@ import React, { Component } from 'react';
 import wordsByLength from './Dictionary.js';
 
 // TODO:
-//  * allow suggestions for partially-filled-in words
 //  * align suggestion to be below word
 //  * UI
 
@@ -119,6 +118,13 @@ class Pattern {
 
   constructor(stringPattern) {
     const pattern = [...Pattern.parse(stringPattern)];
+
+    // Trailing punctuation makes things annoying (since it can end up being an orphaned, zero-length trigram).
+    // Let's just strip it. Extra credit later: have it display but be inert.
+    while (pattern[pattern.length - 1].value !== "") {
+      pattern.pop();
+    }
+
     this.trigrams = [...Pattern.extractTrigrams(pattern)];
     this.words = [...Pattern.extractWords(pattern)];
   }
@@ -217,7 +223,7 @@ class Solver extends Component {
     return numTrigrams + Math.ceil(length / 3);
   }
 
-  static getCombos(count, items) {
+  static getCombosImpl(count, items) {
     const results = [];
     for (let i = 0; i < items.length; i++) {
       const curItem = items[i];
@@ -229,7 +235,7 @@ class Solver extends Component {
       if (count === 1) {
         results.push([curItem]);
       } else {
-        for (const rest of Solver.getCombos(count - 1, filteredItems)) {
+        for (const rest of Solver.getCombosImpl(count - 1, filteredItems)) {
           results.push([curItem, ...rest]);
         }
       }
@@ -237,37 +243,90 @@ class Solver extends Component {
     return results;
   }
 
+  static getCombos(count, items, maybeFirst, maybeLast) {
+    if (maybeFirst) {
+      count -= 1;
+    }
+
+    if (maybeLast) {
+      count -= 1;
+    }
+
+    let combos = Solver.getCombosImpl(count, items);
+
+    if (maybeFirst) {
+      combos = combos.map(c => [maybeFirst, ...c]);
+    }
+
+    if (maybeLast) {
+      combos = combos.map(c => [...c, maybeLast]);
+    }
+
+    return combos;
+  }
+
   generateSuggestions(word) {
+    this.setState(s => ({ ...s, error: null }));
+
     const numTrigrams = Solver.getTrigramCount(word);
-    const trigramCopy = this.state.trigrams.map(
-      (t, i) => ({ trigram: t.letters, assigned: t.assignedTo !== null, index: i })
+    const patternTrigramStatus = word.consumedTrigrams.map(
+      (patternIndex, comboIndex) =>
+        ({ patternIndex,
+           comboIndex,
+           assignedTrigram: this.state.trigrams.find(t => t.assignedTo === patternIndex) || null }));
+
+    // Only the first and last may be filled in, because it makes my life easier
+    if (patternTrigramStatus.slice(1, -1).find(s => s.assignedTrigram)) {
+      return "Cannot give suggestions when middle of word is filled in";
+    }
+
+    const unassignedIndexedTrigrams = this.state.trigrams.map(
+      (t, i) => ({ letters: t.letters, assigned: t.assignedTo !== null, index: i })
     ).filter(
       t => !t.assigned
     );
 
-    const allTrigrams = Solver.getCombos(numTrigrams, trigramCopy);
+    const first = patternTrigramStatus[0].assignedTrigram;
+    const last = patternTrigramStatus[patternTrigramStatus.length - 1].assignedTrigram;
+
+    const allTrigrams = Solver.getCombos(
+      numTrigrams,
+      unassignedIndexedTrigrams,
+      first,
+      last
+    );
 
     const allWords = allTrigrams.map(
       trigramList => ({
-        word: trigramList.map(t => t.trigram).join("").substr(word.startOffset, word.length),
+        word: trigramList.map(t => t.letters).join("").substr(word.startOffset, word.length),
         trigramsUsed: trigramList.map(t => t.index)
       })
     );
 
     const seenWords = new Set();
-
     return allWords
       .filter(w => seenWords.has(w.word) ? false : seenWords.add(w.word))
       .sort((w1, w2) => w1.word < w2.word ? -1 : 1);
   }
 
   giveSuggestionsFor(word) {
-    const dictionary = wordsByLength[word.length];
-    const suggestions = this.generateSuggestions(word).filter(c => dictionary.has(c.word));
+    if (word.length < 2) {
+      return;
+    }
 
-    this.setState(s => {
-      return { ...s, suggestions, wordBeingSuggested: word }
-    });
+    const dictionary = wordsByLength[word.length];
+    let suggestions = this.generateSuggestions(word);
+
+    let error;
+    if (typeof suggestions === 'string') {
+      error = suggestions;
+      suggestions = [];
+    } else {
+      suggestions = suggestions.filter(c => dictionary.has(c.word));
+      error = suggestions.length ? null : "No suggestions found";
+    }
+
+    this.setState(s => ({ ...s, suggestions, error, wordBeingSuggested: word }));
   }
 
   useSuggestion(suggestion) {
@@ -275,9 +334,10 @@ class Solver extends Component {
     const trigramIndexes = suggestion.trigramsUsed;
 
     for (let i = 0; i < trigramIndexes.length; i++) {
-      const t = this.state.trigrams[trigramIndexes[i]];
-      const patternIndex = patternTrigramIndexes[i];
-      this.placeTrigram(t, patternIndex);
+      if (trigramIndexes[i] === undefined) {
+        continue; // The trigram has already been placed
+      }
+      this.placeTrigram(this.state.trigrams[trigramIndexes[i]], patternTrigramIndexes[i]);
     }
   }
 
@@ -303,6 +363,7 @@ class Solver extends Component {
         <br />
         <br />
         {this.state.suggestions && this.state.suggestions.map(c => this.renderSuggestion(c))}
+        {this.state.error && <div>{this.state.error}</div>}
       </div>
     );
   }
