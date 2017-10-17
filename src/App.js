@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import wordsByLength from './Dictionary.js';
 
 // TODO:
 //  * word suggest
@@ -245,25 +246,19 @@ class Solver extends Component {
       t => !t.assigned
     );
 
-    const allTrigrams = Solver.getCombos(numTrigrams, trigramCopy);
-
-    const mapper = (list) => {
-      const allTrigrams = list.join("").substr(word.startOffset);
-      let i = 0;
-      return word.text.trim().replace(/#/g, () => allTrigrams.charAt(i++));
-    }
-
-    const sortDistinct = a => Array.from(new Set(a)).sort();
-
-    const strings = allTrigrams.map(t => mapper(t.map(tt => tt.trigram)));
-    return sortDistinct(strings);
+    const allWords = Solver.getCombos(numTrigrams, trigramCopy).map(
+      trigramList => trigramList.map(t => t.trigram).join("").substr(word.startOffset, word.length)
+    );
+    return Array.from(new Set(allWords)).sort();
   }
 
   giveSuggestionsFor(word) {
+    const candidates = this.generateSuggestions(word);
+    const dictionary = wordsByLength[word.length];
+    const filtered = candidates.filter(c => dictionary.has(c));
+
     this.setState(s => {
-      const candidates = this.generateSuggestions(word);
-//      console.log(candidates);
-      return { ...s, candidates: candidates }
+      return { ...s, candidates: filtered }
     });
   }
 
