@@ -2,7 +2,6 @@ import React, { Component } from 'react';
 import wordsByLength from './Dictionary.js';
 
 // TODO:
-//  * filter on uniqueness
 //  * allow suggestions for partially-filled-in words
 //  * align suggestion to be below word
 //  * UI
@@ -255,8 +254,11 @@ class Solver extends Component {
       })
     );
 
-    return allWords; // FIXME filter on uniqueness
-    // return Array.from(new Set(allWords)).sort();
+    const seenWords = new Set();
+
+    return allWords
+      .filter(w => seenWords.has(w.word) ? false : seenWords.add(w.word))
+      .sort((w1, w2) => w1.word < w2.word ? -1 : 1);
   }
 
   giveSuggestionsFor(word) {
