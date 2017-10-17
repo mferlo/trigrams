@@ -15,3 +15,6 @@ body {
 
 .pattern:hover { background-color: green; cursor: pointer; }
 .pattern.assigned:hover { background-color: red; }
+
+.suggestion { max-width: fit-content; }
+.suggestion:hover { background-color: yellow; cursor: pointer; }

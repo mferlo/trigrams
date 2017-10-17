@@ -2,12 +2,10 @@ import React, { Component } from 'react';
 import wordsByLength from './Dictionary.js';
 
 // TODO:
-//  * word suggest
-//    * all combos
-//    * dictionary
-//  * drag and drop
-//  * UI, css tweaks, etc. make look decent
-//    * or at least, good enough for me
+//  * filter on uniqueness
+//  * allow suggestions for partially-filled-in words
+//  * align suggestion to be below word
+//  * UI
 
 class Trigram {
   constructor(letters) {
@@ -96,23 +94,25 @@ class Pattern {
   static* extractWords(pattern) {
     let startIndex = 0;
     do {
-      const currentWord = pattern[startIndex].wordNumber;
+      const index = pattern[startIndex].wordNumber;
       let charCount = 0;
 
       let endIndex = startIndex;
-      while (endIndex < pattern.length && pattern[endIndex].wordNumber === currentWord) {
+      while (endIndex < pattern.length && pattern[endIndex].wordNumber === index) {
         if (pattern[endIndex].value === "") {
           charCount += 1;
         }
         endIndex += 1;
       }
-      const foo = {
-        currentWord,
+
+      const patternUsed = pattern.slice(startIndex, endIndex);
+      yield {
+        index,
         length: charCount,
         startOffset: pattern[startIndex].trigramIndex,
-        text: pattern.slice(startIndex, endIndex).map(p => p.value || "#").join("")
+        text: patternUsed.map(p => p.value || "#").join(""),
+        consumedTrigrams: Array.from(new Set(patternUsed.map(p => p.trigramNumber)))
       }
-      yield foo;
 
       startIndex = endIndex;
     } while (startIndex < pattern.length)
@@ -138,13 +138,17 @@ class Solver extends Component {
     };
   }
 
-  // Consider implementing this to get around formatting nonsense
-  // static joinWithBlankSpan(
-  //  ... <span>&nbsp;</span>
-
   toggleActiveTrigram(i) {
     const newActiveTrigram = this.state.activeTrigram === i ? null : i;
     this.setState(oldState => ({ ...oldState, activeTrigram: newActiveTrigram }));
+  }
+
+  placeTrigram(trigram, patternTrigramIndex) {
+    this.setState(s => {
+      trigram.assignedTo = patternTrigramIndex;
+      s.pattern.trigrams[patternTrigramIndex].assignedTrigram = trigram.letters;
+      return s;
+    });
   }
 
   placeActiveTrigram(i) {
@@ -152,13 +156,9 @@ class Solver extends Component {
       return;
     }
 
-    this.setState(s => {
-      const t = s.trigrams[s.activeTrigram];
-      t.assignedTo = i;
-      s.pattern.trigrams[i].assignedTrigram = t.letters;
-      s.activeTrigram = null;
-      return s;
-    });
+    const t = this.state.trigrams[this.state.activeTrigram];
+    this.placeTrigram(t, i);
+    this.setState(s => ({ ...s, activeTrigram: null }));
   }
 
   removePlacedTrigram(i) {
@@ -246,24 +246,45 @@ class Solver extends Component {
       t => !t.assigned
     );
 
-    const allWords = Solver.getCombos(numTrigrams, trigramCopy).map(
-      trigramList => trigramList.map(t => t.trigram).join("").substr(word.startOffset, word.length)
+    const allTrigrams = Solver.getCombos(numTrigrams, trigramCopy);
+
+    const allWords = allTrigrams.map(
+      trigramList => ({
+        word: trigramList.map(t => t.trigram).join("").substr(word.startOffset, word.length),
+        trigramsUsed: trigramList.map(t => t.index)
+      })
     );
-    return Array.from(new Set(allWords)).sort();
+
+    return allWords; // FIXME filter on uniqueness
+    // return Array.from(new Set(allWords)).sort();
   }
 
   giveSuggestionsFor(word) {
-    const candidates = this.generateSuggestions(word);
     const dictionary = wordsByLength[word.length];
-    const filtered = candidates.filter(c => dictionary.has(c));
+    const suggestions = this.generateSuggestions(word).filter(c => dictionary.has(c.word));
 
     this.setState(s => {
-      return { ...s, candidates: filtered }
+      return { ...s, suggestions, wordBeingSuggested: word }
     });
   }
 
+  useSuggestion(suggestion) {
+    const patternTrigramIndexes = this.state.wordBeingSuggested.consumedTrigrams;
+    const trigramIndexes = suggestion.trigramsUsed;
+
+    for (let i = 0; i < trigramIndexes.length; i++) {
+      const t = this.state.trigrams[trigramIndexes[i]];
+      const patternIndex = patternTrigramIndexes[i];
+      this.placeTrigram(t, patternIndex);
+    }
+  }
+
+  renderSuggestion(s) {
+    return <div key={s.word} className="suggestion" onClick={(_ => this.useSuggestion(s))}>{s.word}</div>;
+  }
+
   renderWord(w, i) {
-    const key = `${i}-${w.text}-${w.currentWord}`;
+    const key = `${i}-${w.text}-${w.index}`;
     const click = e => this.giveSuggestionsFor(w);
     return <span key={key} className="word" onClick={click}>{w.text}</span>;
   }
@@ -278,7 +299,8 @@ class Solver extends Component {
         <br />
         {this.state.pattern.words.map((w, i) => this.renderWord(w, i))}
         <br />
-        {this.state.candidates && this.state.candidates.map(c => <div key={c}>{c}</div>)}
+        <br />
+        {this.state.suggestions && this.state.suggestions.map(c => this.renderSuggestion(c))}
       </div>
     );
   }
