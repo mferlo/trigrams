@@ -223,15 +223,10 @@ class App extends Component {
   constructor(props) {
     super(props);
 
-    const initialPattern = "5 7!";
-    const initialTrigrams = "HAP ING OLV PYS";
-
-    this.state = {
-      pattern: initialPattern,
-      currentPattern: initialPattern,
-      trigrams: initialTrigrams.split(" "),
-      currentTrigrams: initialTrigrams
-    };
+    // Happy solving!
+    const p = "5 7!";
+    const t = "HAP ING OLV PYS";
+    this.state = this.getState(p, t);
   }
 
   update(e, key) {
@@ -243,16 +238,31 @@ class App extends Component {
     this.setState(s => ({ ...s, pattern: s.currentPattern, trigrams: s.currentTrigrams.split(" ") }));
   }
 
-  loadExample() {
-    // From PB4
-    const p = "6 3 9, 4 2 4 7 8. 1 4 3 4 3 2 5. 7 2";
-    const t = "AND AVE BOA ELC GEN GIH IES INS KIN LAD MEN NON OME ONL PEA PTA RCA RDW SIS THE THI TLE YGU YOU TO";
-    this.setState(_ => ({
+  getState(p, t) {
+    return {
       pattern: p,
       currentPattern: p,
       trigrams: t.split(" "),
       currentTrigrams: t
-    }));
+    };
+  }
+
+  load(p, t) {
+    this.setState(_ => this.getState(p, t));
+  }
+
+  loadFancyExample() {
+    // From PB4: Tell them to be patient and ask death for speed; for they are all there but one - I, Chingachgook
+    const p = "4 4 2 2 7 3 3 5 3 5; 3 4 3 3 5 3 3 - 1, 12*";
+    const t = "ALL ARE ATH CHG CHI DAS EDF EMT FOR HEY IEN KDE LTH NEI NGA OBE OOK ORT PAT REB SPE TAN TEL THE UTO"
+    this.load(p, t);
+  }
+
+  loadPunctuationExample() {
+    // "Wait!", he said. "It's dangerous to go alone. Take this!"
+    const p = '"4!", 2 4. "2\'1 9 2 2 5. 4 4!"';
+    const t = "WAI THE SAI DIT SDA NGE ROU STO GOA LON ETA KET HIS";
+    this.load(p, t);
   }
 
   render() {
@@ -266,7 +276,9 @@ class App extends Component {
       <br />
       <button onClick={_ => this.updateValues()}>Update</button>
       <br />
-      <button onClick={_ => this.loadExample()}>Load Fancier Example</button>
+      <button onClick={_ => this.loadFancyExample()}>Load Fancy Example</button>
+      <br />
+      <button onClick={_ => this.loadPunctuationExample()}>Load Punctuation Example</button>
     </div>);
   }
 }
