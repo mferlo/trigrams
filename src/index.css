@@ -7,7 +7,6 @@ body {
 
 .trigram:not(:last-child) { margin-right: 10px; }
 
-.word:not(:last-child) { margin-right: 10px; }
 .word:hover { background-color: blue; cursor: pointer; }
 
 .trigram.active { background-color: yellow; }

@@ -5,6 +5,8 @@ import React, { Component } from 'react';
 //    * all combos
 //    * dictionary
 //  * drag and drop
+//  * UI, css tweaks, etc. make look decent
+//    * or at least, good enough for me
 
 class Trigram {
   constructor(letters) {
@@ -107,8 +109,8 @@ class Pattern {
         currentWord,
         length: charCount,
         startOffset: pattern[startIndex].trigramIndex,
+        text: pattern.slice(startIndex, endIndex).map(p => p.value || "#").join("")
       }
-      console.log(foo);
       yield foo;
 
       startIndex = endIndex;
@@ -117,7 +119,6 @@ class Pattern {
 
   constructor(stringPattern) {
     const pattern = [...Pattern.parse(stringPattern)];
-    console.log(pattern);
     this.trigrams = [...Pattern.extractTrigrams(pattern)];
     this.words = [...Pattern.extractWords(pattern)];
   }
@@ -131,9 +132,14 @@ class Solver extends Component {
     this.state = {
       pattern: new Pattern(this.props.pattern),
       trigrams: this.props.trigrams.map(t => new Trigram(t)),
-      activeTrigram: null
+      activeTrigram: null,
+      wordPossibilities: null
     };
   }
+
+  // Consider implementing this to get around formatting nonsense
+  // static joinWithBlankSpan(
+  //  ... <span>&nbsp;</span>
 
   toggleActiveTrigram(i) {
     const newActiveTrigram = this.state.activeTrigram === i ? null : i;
@@ -201,9 +207,70 @@ class Solver extends Component {
     </span>);
   }
 
+  static getTrigramCount(word) {
+    let numTrigrams = 0;
+    let length = word.length;
+    if (word.startOffset) {
+      numTrigrams += 1;
+      length -= word.startOffset === 1 ? 2 : 1;
+    }
+    return numTrigrams + Math.ceil(length / 3);
+  }
+
+  static getCombos(count, items) {
+    const results = [];
+    for (let i = 0; i < items.length; i++) {
+      const curItem = items[i];
+      if (curItem.assigned) {
+        continue;
+      }
+
+      const filteredItems = items.filter((_, _i) => i !== _i);
+      if (count === 1) {
+        results.push([curItem]);
+      } else {
+        for (const rest of Solver.getCombos(count - 1, filteredItems)) {
+          results.push([curItem, ...rest]);
+        }
+      }
+    }
+    return results;
+  }
+
+  generateSuggestions(word) {
+    const numTrigrams = Solver.getTrigramCount(word);
+    const trigramCopy = this.state.trigrams.map(
+      (t, i) => ({ trigram: t.letters, assigned: t.assignedTo !== null, index: i })
+    ).filter(
+      t => !t.assigned
+    );
+
+    const allTrigrams = Solver.getCombos(numTrigrams, trigramCopy);
+
+    const mapper = (list) => {
+      const allTrigrams = list.join("").substr(word.startOffset);
+      let i = 0;
+      return word.text.trim().replace(/#/g, () => allTrigrams.charAt(i++));
+    }
+
+    const sortDistinct = a => Array.from(new Set(a)).sort();
+
+    const strings = allTrigrams.map(t => mapper(t.map(tt => tt.trigram)));
+    return sortDistinct(strings);
+  }
+
+  giveSuggestionsFor(word) {
+    this.setState(s => {
+      const candidates = this.generateSuggestions(word);
+//      console.log(candidates);
+      return { ...s, candidates: candidates }
+    });
+  }
+
   renderWord(w, i) {
-    const key = `word-${i}-${w}`;
-    return <span key={key} className="word">{w}</span>;
+    const key = `${i}-${w.text}-${w.currentWord}`;
+    const click = e => this.giveSuggestionsFor(w);
+    return <span key={key} className="word" onClick={click}>{w.text}</span>;
   }
 
   render() {
@@ -213,7 +280,10 @@ class Solver extends Component {
         <br />
         {this.state.pattern.trigrams.map((t, i) => this.renderPattern(t, i))}
         <br />
-        {/*this.state.pattern.words.map((w, i) => this.renderWord(w, i))*/}
+        <br />
+        {this.state.pattern.words.map((w, i) => this.renderWord(w, i))}
+        <br />
+        {this.state.candidates && this.state.candidates.map(c => <div key={c}>{c}</div>)}
       </div>
     );
   }
