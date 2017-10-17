@@ -41,11 +41,12 @@ class Pattern {
   static* parse(inputString) {
     let trigramNumber = 0;
     let trigramIndex = 0;
+    let wordNumber = 0;
     let currentNumber = "";
 
     const yieldBlanks = function*() {
       for (let j = 0; j < Number.parseInt(currentNumber, 10); j++) {
-        yield { trigramNumber, trigramIndex, value: "" };
+        yield { trigramNumber, trigramIndex, wordNumber, value: "" };
         trigramIndex += 1;
         if (trigramIndex === 3) {
           trigramIndex = 0;
@@ -61,11 +62,16 @@ class Pattern {
         currentNumber += ch;
       } else {
         yield* yieldBlanks();
-        yield { trigramNumber, trigramIndex, value: ch };
+        yield { trigramNumber, trigramIndex, wordNumber, value: ch };
+        if (ch === " ") {
+          wordNumber += 1;
+        }
       }
     }
 
-    yield* yieldBlanks(currentNumber);
+    // Maybe we got to the end without seeing more punctuation
+    wordNumber += 1;
+    yield* yieldBlanks();
   }
 
   static* extractTrigrams(pattern) {
@@ -84,11 +90,36 @@ class Pattern {
     } while (startIndex < pattern.length)
   }
 
+  static* extractWords(pattern) {
+    let startIndex = 0;
+    do {
+      const currentWord = pattern[startIndex].wordNumber;
+      let charCount = 0;
+
+      let endIndex = startIndex;
+      while (endIndex < pattern.length && pattern[endIndex].wordNumber === currentWord) {
+        if (pattern[endIndex].value === "") {
+          charCount += 1;
+        }
+        endIndex += 1;
+      }
+      const foo = {
+        currentWord,
+        length: charCount,
+        startOffset: pattern[startIndex].trigramIndex,
+      }
+      console.log(foo);
+      yield foo;
+
+      startIndex = endIndex;
+    } while (startIndex < pattern.length)
+  }
+
   constructor(stringPattern) {
     const pattern = [...Pattern.parse(stringPattern)];
     console.log(pattern);
     this.trigrams = [...Pattern.extractTrigrams(pattern)];
-//    this.words = pattern.map(p => p || "#").join('').split(' ');
+    this.words = [...Pattern.extractWords(pattern)];
   }
 }
 
